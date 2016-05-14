@@ -24,7 +24,7 @@
     </filter>
     <context-param>
         <param-name>contextConfigLocation</param-name>
-        <param-value>/src/main/webapp/WEB-INF/application.xml</param-value>
+        <param-value>/WEB-INF/application.xml</param-value>
     </context-param>
 
     <servlet>
