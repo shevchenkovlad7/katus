@@ -11,6 +11,10 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -40,7 +44,7 @@ public class Location {
 
     @Path("/{paramX}/{paramY}")
     @GET
-    @Produces(MediaType.TEXT_HTML)
+    @Produces(MediaType.APPLICATION_JSON)
     public Response getLocation(@PathParam("paramX") String paramX, @PathParam("paramY") String paramY) throws IOException {
 
         url = "https://api.instagram.com/v1/locations/search?lat=" + paramX + "&lng=" + paramY + "&access_token=" + token;
@@ -66,14 +70,14 @@ public class Location {
 
         String jsonLocations = result.toString();
 
-        String[] mas = jsonLocations.split("\"id\": \"");
-
-        for (String s : mas) {
-            if (s.indexOf("name") != -1) {
-                int a = s.indexOf("\"");
-                list.add(s.substring(0, a));
-            }
-        }
+//        String[] mas = jsonLocations.split("\"id\": \"");
+//
+//        for (String s : mas) {
+//            if (s.indexOf("name") != -1) {
+//                int a = s.indexOf("\"");
+//                list.add(s.substring(0, a));
+//            }
+//        }
 
         List<ResponseObject> responseObjects = new ArrayList<>();
 
@@ -82,14 +86,63 @@ public class Location {
         for (Object o : locations) {
             try {
                 ResponseObject responseObject = new ResponseObject();
-                responseObject.setLocationObject(objectMapper.readValue(o.toString(), LocationObject.class));
+                LocationObject locationObject = objectMapper.readValue(o.toString(), LocationObject.class);
+                responseObject.setLocationObject(locationObject);
                 responseObjects.add(responseObject);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-        return Response.ok().entity(list.get(1).toString()).build();
+        urlPhotos(responseObjects);
+
+        return Response.ok().entity(responseObjects).build();
+    }
+
+
+    public void urlPhotos(List<ResponseObject> responseObjects){
+        for (ResponseObject responseObject : responseObjects) {
+
+            DefaultHttpClient hc = new DefaultHttpClient();
+            ResponseHandler response = new BasicResponseHandler();
+            HttpGet http = new HttpGet("https://www.instagram.com/explore/locations/" + responseObject.getLocationObject().getId());
+            String html = "";
+            try {
+                html = (String) hc.execute(http, response);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            Document document = Jsoup.parse(html);
+            Elements elements = document.getElementsByTag("script");
+
+            JSONObject jsonObject = null;
+
+            for (Element element1 : elements) {
+                String json = element1.data();
+                if (json.startsWith("window._sharedData")) {
+                    String s = json.substring(json.indexOf("{"), json.lastIndexOf("}") + 1);
+                    jsonObject = new JSONObject(s);
+                }
+            }
+
+            JSONObject entryData = jsonObject.getJSONObject("entry_data");
+            Object locationsPage = entryData.getJSONArray("LocationsPage").get(0);
+            JSONObject location = new JSONObject(locationsPage.toString()).getJSONObject("location");
+            Object topNodes = location.getJSONObject("top_posts");
+            JSONArray nodes = new JSONObject(topNodes.toString()).getJSONArray("nodes");
+
+            List<String> imeges = new ArrayList<>();
+
+            for (Object o : nodes) {
+                JSONObject jsonObject1 = new JSONObject(o.toString());
+                String link = jsonObject1.getString("display_src");
+                System.out.println(link);
+                imeges.add(link);
+            }
+            responseObject.setImegUrls(imeges);
+        }
+
     }
 
 }
