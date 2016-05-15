@@ -51,7 +51,7 @@ public class Location {
         }
         System.out.print(html);
 
-        Document doc = Jsoup.parse(html);
+
 
 
 
